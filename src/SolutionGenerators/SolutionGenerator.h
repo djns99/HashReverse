@@ -1,5 +1,6 @@
 #pragma once
-#include "HashFunction.h"
+
+#include "../HashFunction.h"
 
 class SolutionGenerator
 {

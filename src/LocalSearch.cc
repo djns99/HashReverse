@@ -1,50 +1,43 @@
 #include "LocalSearch.h"
 #include <iostream>
 
-LocalSearch::LocalSearch(LocalSearchMode mode, ObjectiveFunction& function)
-    : search_mode(mode)
-    , objective_function(function)
+LocalSearch::LocalSearch( LocalSearchMode mode,
+                          ObjectiveFunction& function )
+        : search_mode(mode)
+        , objective_function(function)
 {
 }
 
-HashFunction LocalSearch::operator()(const HashFunction& in) const
+std::pair<HashFunction, uint64_t> LocalSearch::operator()( const HashFunction& in ) const
 {
     uint64_t current_val = UINT64_MAX;
     uint64_t next_val = objective_function(in);
     HashFunction f = in;
     uint64_t i = 0;
-    while (next_val < current_val)
-    {
+    while ( next_val < current_val ) {
         current_val = next_val;
         next_val = improve(f, current_val);
-        std::cout << "Improved " << ++i << " times" << std::endl;
     }
-    return f;
+    return {std::move(f), current_val};
 }
 
-uint64_t LocalSearch::improve(HashFunction& function, uint64_t current_val) const
+uint64_t LocalSearch::improve( HashFunction& function,
+                               uint64_t current_val ) const
 {
     auto& plas = function.getPLAs();
     uint64_t num_bits = function.getInputBits();
     Term best_term;
     Term* best_location = nullptr;
-    for(auto& pla : plas)
-    {
-        for(auto& term : pla)
-        {
+    for ( auto& pla : plas ) {
+        for ( auto& term : pla ) {
             const Term old_term = term;
-            for(uint64_t term_bit = 0; term_bit < num_bits; term_bit++)
-            {
-                for(uint64_t val = Term::KEEP; val <= Term::DONT_CARE; val++)
-                {
-                    if(old_term.get(term_bit) != val)
-                    {
+            for ( uint64_t term_bit = 0; term_bit < num_bits; term_bit++ ) {
+                for ( uint64_t val = Term::KEEP; val <= Term::DONT_CARE; val++ ) {
+                    if ( old_term.get(term_bit) != val ) {
                         term.set(term_bit, (Term::BitValue)val);
                         uint64_t score = objective_function(function);
-                        if(score < current_val)
-                        {
-                            if(search_mode == LocalSearchMode::FIRST_IMPROVEMENT)
-                            {
+                        if ( score < current_val ) {
+                            if ( search_mode == LocalSearchMode::FIRST_IMPROVEMENT ) {
                                 return score;
                             }
 
@@ -55,15 +48,25 @@ uint64_t LocalSearch::improve(HashFunction& function, uint64_t current_val) cons
                     }
                 }
 
-                if(old_term.isInit())
-                {
+                if ( old_term.isInit() ) {
+                    // Check the negated term
+                    term.flipNegation();
+                    uint64_t score = objective_function(function);
+                    if ( score < current_val ) {
+                        if ( search_mode == LocalSearchMode::FIRST_IMPROVEMENT ) {
+                            return score;
+                        }
+
+                        best_term = term;
+                        best_location = &term;
+                        current_val = score;
+                    }
+
                     // Check the empty term
                     term.clear();
-                    uint64_t score = objective_function(function);
-                    if (score < current_val)
-                    {
-                        if (search_mode == LocalSearchMode::FIRST_IMPROVEMENT)
-                        {
+                    score = objective_function(function);
+                    if ( score < current_val ) {
+                        if ( search_mode == LocalSearchMode::FIRST_IMPROVEMENT ) {
                             return score;
                         }
 
@@ -80,8 +83,7 @@ uint64_t LocalSearch::improve(HashFunction& function, uint64_t current_val) cons
     }
 
     // Reapply the best improvement we found
-    if( search_mode == LocalSearchMode::BEST_IMPROVEMENT && best_location)
-    {
+    if ( search_mode == LocalSearchMode::BEST_IMPROVEMENT && best_location ) {
         *best_location = best_term;
     }
 
