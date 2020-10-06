@@ -1,6 +1,5 @@
 #pragma once
 
-#include "MemeticAlgorithm.h"
 #include "Population.h"
 
 class MemeticAlgorithm;
@@ -11,3 +10,5 @@ public:
     virtual void operator()( MemeticAlgorithm&,
                              Population& ) = 0;
 };
+
+#include "MemeticAlgorithm.h"

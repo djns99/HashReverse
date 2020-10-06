@@ -11,20 +11,21 @@ public:
     LocalSearchGenerator( uint64_t input_bits,
                           uint64_t output_bits,
                           uint64_t max_depth,
-                          uint64_t dont_care_weight,
+                          float dont_care_weight,
+                          float all_zero_prob,
                           URBG& urbg,
-                          LocalSearchMode mode,
-                          ObjectiveFunction& objective_function )
-            : RandomGenerator<URBG>(input_bits, output_bits, max_depth, dont_care_weight, urbg)
-            , search(mode, objective_function)
+                          LocalSearchMode mode )
+            : RandomGenerator<URBG>(input_bits, output_bits, max_depth, dont_care_weight, all_zero_prob, urbg)
+            , search_mode(mode)
     {
     }
 
-    HashFunction operator()() override
+    HashFunction operator()( const MemeticAlgorithm& memetic_algorithm ) override
     {
-        return search(RandomGenerator<URBG>::operator()());
+        LocalSearch search(search_mode, memetic_algorithm.getObjectiveFunction());
+        return search(RandomGenerator<URBG>::operator()()).first;
     }
 
 private:
-    LocalSearch search;
+    LocalSearchMode search_mode;
 };

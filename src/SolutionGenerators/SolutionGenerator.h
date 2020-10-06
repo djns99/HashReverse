@@ -5,5 +5,5 @@
 class SolutionGenerator
 {
 public:
-    virtual HashFunction operator()() = 0;
+    virtual HashFunction operator()(const MemeticAlgorithm&) = 0;
 };

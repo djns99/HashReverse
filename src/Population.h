@@ -1,6 +1,7 @@
 #pragma once
 
 #include "HashFunction.h"
+#include "ObjectiveFunction.h"
 #include <utility>
 #include <vector>
 
@@ -40,17 +41,20 @@ public:
 
     std::pair<HashFunction, uint64_t> popHead();
 
+    void reevaluate( ObjectiveFunction& objective_function );
+
+
 private:
     std::vector<std::pair<HashFunction, uint64_t>> members;
 
-    struct Compare
+    struct CompareGreater
     {
         bool operator()( const std::pair<HashFunction, uint64_t>& left,
                          const std::pair<HashFunction, uint64_t>& right ) const
         {
-            return left.second < right.second;
+            return left.second > right.second;
         }
     };
 
-    Compare comparator;
+    CompareGreater heap_comparator;
 };

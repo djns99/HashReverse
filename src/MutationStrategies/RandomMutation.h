@@ -25,7 +25,7 @@ protected:
         const float invert_weight = 1.0;
         const float base_weight = keep_weight + invert_weight + dont_care_weight;
         const float wipe_weight = 1.0 / pow(base_weight, hash_function.first.getInputBits() / 2.0);
-        const float negate_weight = 1.0 / pow(base_weight, hash_function.first.getInputBits());
+        const float negate_weight = 0.0;//1.0 / pow(base_weight, hash_function.first.getInputBits());
         std::uniform_real_distribution<float> choice_dist(0, base_weight + negate_weight + wipe_weight);
         for ( uint64_t i = 0; i < num_mutations; i++ ) {
             const uint64_t pla = pla_dist(urbg);
@@ -46,7 +46,8 @@ protected:
             }
         }
 
-        hash_function.second = mimetic_algorithm.getObjectiveFunction()(hash_function.first);
+        if(num_mutations)
+            hash_function.second = UINT64_MAX;
     }
 
     URBG& urbg;
@@ -71,7 +72,7 @@ public:
         const auto& best = pop.best();
         const uint64_t num_terms = best.first.getOutputBits() * best.first.getMaxTerms();
         for ( auto& member : pop.getMembers() ) {
-            RandomMutation<URBG>::mutate(mimetic_algorithm, member, num_terms * dist(this->urbg));
+            RandomMutation<URBG>::mutate(mimetic_algorithm, member, std::ceil(num_terms * dist(this->urbg)));
         }
         pop.reheap();
     }
@@ -100,7 +101,7 @@ public:
         const auto& best = pop.best();
         const uint64_t num_terms = best.first.getOutputBits() * best.first.getMaxTerms();
         for ( auto& member : pop.getMembers() ) {
-            RandomMutation<URBG>::mutate(mimetic_algorithm, member, num_terms * dist(this->urbg));
+            RandomMutation<URBG>::mutate(mimetic_algorithm, member, std::ceil(num_terms * dist(this->urbg)));
         }
         pop.reheap();
     }
@@ -108,4 +109,47 @@ public:
 private:
     float mean_mutation_rate;
     float stddev;
+};
+
+
+template<class URBG>
+class BimodalNormalDistRandomMutation : public RandomMutation<URBG>
+{
+public:
+    explicit BimodalNormalDistRandomMutation( float mean_mutation_rate1,
+                                       float stddev1,
+                                       float mean_mutation_rate2,
+                                       float stddev2,
+                                       float prob1,
+                                       URBG& urbg )
+            : RandomMutation<URBG>(urbg)
+            , mean_mutation_rate1(mean_mutation_rate1)
+            , stddev1(stddev1)
+            , mean_mutation_rate2(mean_mutation_rate2)
+            , stddev2(stddev2)
+            , prob1(prob1)
+    {
+    }
+
+    void operator()( MemeticAlgorithm& mimetic_algorithm,
+                     Population& pop ) override
+    {
+        std::uniform_real_distribution<float> dist01;
+        bool sel1 = dist01(this->urbg) < prob1;
+        float mean_mutation_rate = sel1 ? mean_mutation_rate1 : mean_mutation_rate2;
+        float stddev = sel1 ? stddev1 : stddev2;
+        std::normal_distribution<float> dist(mean_mutation_rate, stddev);
+        const auto& best = pop.best();
+        const uint64_t num_terms = best.first.getOutputBits() * best.first.getMaxTerms();
+        for ( auto& member : pop.getMembers() ) {
+            RandomMutation<URBG>::mutate(mimetic_algorithm, member, std::ceil(num_terms * dist(this->urbg)));
+        }
+    }
+
+private:
+    const float mean_mutation_rate1;
+    const float stddev1;
+    const float mean_mutation_rate2;
+    const float stddev2;
+    const float prob1;
 };

@@ -13,7 +13,6 @@ std::pair<HashFunction, uint64_t> LocalSearch::operator()( const HashFunction& i
     uint64_t current_val = UINT64_MAX;
     uint64_t next_val = objective_function(in);
     HashFunction f = in;
-    uint64_t i = 0;
     while ( next_val < current_val ) {
         current_val = next_val;
         next_val = improve(f, current_val);

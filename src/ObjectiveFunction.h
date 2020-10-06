@@ -8,6 +8,7 @@
 #include <random>
 #include <unordered_map>
 #include <vector>
+#include <map>
 
 struct CountingIterator : std::iterator<std::forward_iterator_tag, uint64_t>
 {
@@ -39,6 +40,23 @@ class ObjectiveFunction
 {
 public:
     virtual uint64_t operator()( const HashFunction& function ) = 0;
+
+    ObjectiveFunction( uint64_t output_bits,
+                       uint64_t num_samples )
+            : output_bits(output_bits)
+            , num_samples(num_samples)
+    {
+
+    }
+
+    [[nodiscard]] double normalize( uint64_t score ) const
+    {
+        return (double)score / (double)(num_samples * output_bits);
+    }
+
+protected:
+    uint64_t output_bits;
+    uint64_t num_samples;
 };
 
 class CachedObjectiveFunction : public ObjectiveFunction
@@ -48,10 +66,11 @@ public:
     explicit CachedObjectiveFunction( const HashFunction& reference_function,
                                       uint64_t num_samples,
                                       URBG&& urbg )
+            : ObjectiveFunction(reference_function.getOutputBits(), num_samples)
     {
         uint64_t max_input = ~0u >> (64u - reference_function.getInputBits());
         if ( num_samples >= max_input ) {
-            for ( uint64_t i = 0; i < max_input; i++ )
+            for ( uint64_t i = 0; i <= max_input; i++ )
                 samples.emplace(i, reference_function(i));
         } else if ( num_samples >= max_input / 2 ) {
             std::vector<uint64_t> values(num_samples);
@@ -71,6 +90,15 @@ public:
                     res.first->second = reference_function(val);
             }
         }
+
+        // Add some common must have cases
+        for ( uint64_t i = 0; i < reference_function.getInputBits(); i++ ) {
+            samples.emplace(1ull << i, reference_function(i));
+            uint64_t all_ones = ~0ull >> (63 - i);
+            samples.emplace(all_ones, reference_function(all_ones));
+        }
+        samples.emplace(0, reference_function(0));
+        this->num_samples = samples.size();
     }
 
     uint64_t operator()( const HashFunction& function ) override
@@ -84,7 +112,7 @@ public:
     }
 
 private:
-    std::unordered_map<uint64_t, uint64_t> samples;
+    std::map<uint64_t, uint64_t> samples;
 };
 
 template<class URBG>
@@ -94,9 +122,10 @@ public:
     UncachedObjectiveFunction( const HashFunction& reference_function,
                                uint64_t num_samples,
                                URBG& urbg )
-            : reference_function(reference_function)
+            : ObjectiveFunction(reference_function.getOutputBits(), num_samples)
+            , reference_function(reference_function)
             , num_samples(num_samples)
-            , dist(0, ~0u >> (64u - reference_function.getInputBits()))
+            , dist(0, ~0ull >> (64u - reference_function.getInputBits()))
             , urbg(urbg)
     {
     }
@@ -104,7 +133,10 @@ public:
     uint64_t operator()( const HashFunction& function ) override
     {
         uint64_t count = 0;
-        if ( num_samples >= dist.max() / 2 ) {
+        if ( num_samples > dist.max() ) {
+            for ( uint64_t i = 0; i < num_samples; i++ )
+                count += __builtin_popcountll(function(i) ^ reference_function(i));
+        } else if ( num_samples >= dist.max() / 2 && num_samples <= dist.max() ) {
             std::vector<uint64_t> values(num_samples);
             std::sample(CountingIterator{0}, CountingIterator{dist.max() + 1}, values.begin(), num_samples, urbg);
             for ( auto& val : values ) {

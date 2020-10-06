@@ -4,6 +4,7 @@
 
 class FullConvergence : public ConvergenceCriterion
 {
+public:
     bool operator()( const Population& pop ) override
     {
         if(pop.size() == 1)

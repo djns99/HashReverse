@@ -30,25 +30,7 @@ public:
 
     HashFunction run( uint64_t population_size,
                       const std::function<bool( uint64_t,
-                                                uint64_t )>& should_stop )
-    {
-        pop_size = population_size;
-        Population p = generateInitial(population_size);
-        for ( uint64_t i = 0; !should_stop(i, p.best().second); i++ ) {
-            Population old = p;
-            Population new_pop = (*processing_pipeline)(*this, p);
-            p = (*reconstruction_strategy)(old, new_pop);
-            assert(p.size() == population_size);
-            if ( (*convergence_criterion)(p) ) {
-                std::cout << "Restart" << std::endl;
-                p = restartPopulation(p);
-            }
-            assert(p.size() == population_size);
-            std::cout << i << ": " << p.best().second << "\t\t\r" << std::flush;
-        }
-
-        return (p.best().second < best.second) ? p.best().first : best.first;
-    }
+                                                Population& )>& should_stop );
 
     [[nodiscard]] ObjectiveFunction& getObjectiveFunction() const
     {
@@ -64,6 +46,8 @@ private:
     Population generateInitial( uint64_t size );
 
     Population restartPopulation( Population& );
+
+    void printPopulation( const Population& ) const;
 
     std::unique_ptr<ObjectiveFunction> objective_function;
     std::unique_ptr<SolutionGenerator> generator;

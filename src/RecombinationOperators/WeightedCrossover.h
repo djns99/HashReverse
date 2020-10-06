@@ -1,14 +1,17 @@
 #pragma once
 
+#pragma once
+
 #include "../PipelineStage.h"
 #include "CrossoverFunctions.h"
+#include "../RankDistribution.h"
 #include <random>
 
 template<class URBG, class CrossoverFunction>
-class SimpleCrossover : public PipelineStage
+class WeightedCrossover : public PipelineStage
 {
 public:
-    SimpleCrossover( double new_pop_ratio,
+    WeightedCrossover( double new_pop_ratio,
                      URBG& urbg )
             : new_pop_ratio(new_pop_ratio)
             , urbg(urbg)
@@ -23,14 +26,14 @@ public:
         const uint64_t new_size = algorithm.getPopulationSize() * new_pop_ratio;
         auto& old_functions = old_pop.getMembers();
         Population new_pop(new_size);
-        std::uniform_int_distribution<uint64_t> dist(0, old_size - 1);
+
+        RankDistribution<uint64_t> dist(old_size);
         while ( new_pop.size() < new_size ) {
             if ( old_size > 1 ) {
                 const uint64_t first_idx = dist(urbg);
                 const uint64_t second_idx = dist(urbg);
-                if ( first_idx == second_idx ) {
+                if ( first_idx == second_idx )
                     continue;
-                }
                 auto new_func = CrossoverFunction::crossover(old_functions[first_idx].first, old_functions[second_idx].first, urbg);
                 new_pop.add(std::move(new_func), UINT64_MAX);
             } else {
@@ -45,9 +48,8 @@ private:
     URBG& urbg;
 };
 
+template<class URBG>
+using WeightedBitCrossover = WeightedCrossover<URBG, BitCrossover>;
 
 template<class URBG>
-using SimpleBitCrossover = SimpleCrossover<URBG, BitCrossover>;
-
-template<class URBG>
-using SimpleTermCrossover = SimpleCrossover<URBG, TermCrossover>;
+using WeightedTermCrossover = WeightedCrossover<URBG, TermCrossover>;

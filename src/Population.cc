@@ -5,7 +5,7 @@ void Population::add( HashFunction function,
                       uint64_t score )
 {
     members.emplace_back(std::move(function), score);
-    std::push_heap(members.begin(), members.end(), comparator);
+    std::push_heap(members.begin(), members.end(), heap_comparator);
 }
 
 void Population::remove( HashFunction& function )
@@ -13,7 +13,7 @@ void Population::remove( HashFunction& function )
     for ( auto& f : members ) {
         if ( &f.first == &function ) {
             std::swap(f, members.back());
-            std::make_heap(members.begin(), members.end(), comparator);
+            std::make_heap(members.begin(), members.end(), heap_comparator);
         }
     }
 }
@@ -36,7 +36,7 @@ std::vector<std::pair<HashFunction, uint64_t>>& Population::getMembers()
 std::pair<HashFunction, uint64_t> Population::popHead()
 {
     assert(!members.empty());
-    std::pop_heap(members.begin(), members.end(), comparator);
+    std::pop_heap(members.begin(), members.end(), heap_comparator);
     std::pair<HashFunction, uint64_t> head = std::move(members.back());
     members.pop_back();
     return head;
@@ -64,10 +64,17 @@ void Population::resize( uint64_t size )
 
 void Population::reheap()
 {
-    std::make_heap(members.begin(), members.end(), comparator);
+    std::make_heap(members.begin(), members.end(), heap_comparator);
 }
 
 void Population::sort()
 {
-    std::sort_heap(members.begin(), members.end(), comparator);
+    std::sort_heap(members.begin(), members.end(), heap_comparator);
+}
+
+void Population::reevaluate( ObjectiveFunction& objective_function )
+{
+    for ( auto& member: members )
+        member.second = objective_function(member.first);
+    reheap();
 }

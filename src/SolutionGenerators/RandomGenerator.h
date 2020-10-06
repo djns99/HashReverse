@@ -36,7 +36,7 @@ public:
             for ( auto& term : pla ) {
                 if ( uniform01(urbg) < all_zero_prob )
                     continue;
-                uint64_t num_unset = 0;
+                uint64_t num_set = input_bits;
                 for ( uint64_t i = 0; i < input_bits; i++ ) {
                     float choice = choice_dist(urbg);
                     if ( choice < keep_weight ) {
@@ -45,15 +45,20 @@ public:
                         term.set(i, Term::BitValue::INVERT);
                     } else {
                         term.set(i, Term::BitValue::DONT_CARE);
-                        num_unset++;
+                        num_set--;
                     }
                 }
                 // Set negated with probability proportional to the number of set bits
-                term.setNegation(uniform01(urbg) < (0.5 / (num_unset + 1)));
+                // term.setNegation(uniform01(urbg) < (0.5 / (num_set * num_set + 1.0)));
             }
         }
 
         return h;
+    }
+
+    HashFunction operator()(const MemeticAlgorithm&) override
+    {
+        return operator()();
     }
 
 protected:

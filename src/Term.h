@@ -47,7 +47,7 @@ struct Term
         const uint64_t hi_mask = input_hi & value_hi;
         const uint64_t lo_res = merge(lo_mask);
         const uint64_t hi_res = merge(hi_mask);
-        return (lo_res == UINT32_MAX && hi_res == UINT32_MAX) ^ negate;
+        return (lo_res == UINT32_MAX && hi_res == UINT32_MAX);// ^ negate;
     }
 
     void set( uint32_t index,
@@ -114,10 +114,5 @@ private:
     static uint64_t merge( uint64_t val )
     {
         return _pext_u64(val, 0x5555555555555555ull) | _pext_u64(val, 0xaaaaaaaaaaaaaaaaull);
-    }
-
-    static uint32_t dont_care_mask( uint64_t val )
-    {
-        return ~(_pext_u64(val, 0x5555555555555555ull) & _pext_u64(val, 0xaaaaaaaaaaaaaaaaull));
     }
 };

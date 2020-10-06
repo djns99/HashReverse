@@ -69,8 +69,36 @@ public:
         return hash_function;
     }
 
+    [[nodiscard]] uint64_t hashcode() const
+    {
+        uint64_t code = 0;
+        for(auto& pla : hash_function) {
+            for ( auto& term : pla )
+                code ^= murmur64(term.value_hi ^ term.value_lo);
+            // Mix the PLA with murmur so identical PLAs for different bits dont have the same effect
+            murmur64(code);
+        }
+        return code;
+    }
+
+
+    static uint64_t getNumCalls()
+    {
+        return num_calls;
+    }
 private:
+    static uint64_t murmur64(uint64_t code) {
+        code ^= code >> 33u;
+        code *= 0xff51afd7ed558ccdUL;
+        code ^= code >> 33u;
+        code *= 0xc4ceb9fe1a85ec53UL;
+        code ^= code >> 33u;
+        return code;
+    }
+
     uint64_t num_input_bits = 0;
     uint64_t num_output_bits = 0;
     std::vector<std::vector<Term>> hash_function{};
+
+    static uint64_t num_calls;
 };
