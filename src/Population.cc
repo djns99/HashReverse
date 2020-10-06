@@ -78,3 +78,8 @@ void Population::reevaluate( ObjectiveFunction& objective_function )
         member.second = objective_function(member.first);
     reheap();
 }
+
+bool Population::isHeap() const
+{
+    return std::is_heap(members.begin(), members.end(), heap_comparator);
+}

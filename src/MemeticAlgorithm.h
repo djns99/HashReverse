@@ -47,6 +47,8 @@ private:
 
     Population restartPopulation( Population& );
 
+    void updateBest( const std::pair<HashFunction, uint64_t>& candidate );
+
     void printPopulation( const Population& ) const;
 
     std::unique_ptr<ObjectiveFunction> objective_function;

@@ -43,7 +43,7 @@ public:
 
     void reevaluate( ObjectiveFunction& objective_function );
 
-
+    [[nodiscard]] bool isHeap() const;
 private:
     std::vector<std::pair<HashFunction, uint64_t>> members;
 

@@ -11,13 +11,15 @@ HashFunction MemeticAlgorithm::run( uint64_t population_size,
         Population old = p;
         Population new_pop = (*processing_pipeline)(*this, p);
         p = (*reconstruction_strategy)(old, new_pop);
+        assert(p.isHeap());
+        updateBest(p.best());
         // printPopulation(p);
         assert(p.size() == population_size);
         if ( (*convergence_criterion)(p) ) {
             p = restartPopulation(p);
         }
         assert(p.size() == population_size);
-        std::cout << i << ": " << p.best().second << "\t\t\r" << std::flush;
+        std::cout << i << ": " << best.second << "(" << p.best().second << ")" << "\t\t\t\r" << std::flush;
     }
 
     return (p.best().second < best.second) ? p.best().first : best.first;
@@ -39,8 +41,7 @@ Population MemeticAlgorithm::restartPopulation( Population& population )
     std::cout << "Restart" << std::endl;
     const uint64_t num_to_preserve = pop_size * restart_preservation_percentage;
 
-    if ( population.best().second < best.second )
-        best = population.best();
+    updateBest(population.best());
 
     Population new_pop(pop_size);
     for ( uint64_t i = 0; i < num_to_preserve; i++ ) {
@@ -72,4 +73,10 @@ void MemeticAlgorithm::printPopulation( const Population& pop ) const
     }
     std::cout << std::endl;
     std::cout << std::endl;
+}
+
+void MemeticAlgorithm::updateBest( const std::pair<HashFunction, uint64_t>& candidate )
+{
+    if ( candidate.second < best.second )
+        best = candidate;
 }

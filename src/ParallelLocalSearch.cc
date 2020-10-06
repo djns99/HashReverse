@@ -1,31 +1,24 @@
 #include "ParallelLocalSearch.h"
+#include "LocalSearch.h"
 #include <cstdint>
 
 std::pair<HashFunction, uint64_t> ParallelLocalSearch::operator()( const HashFunction& in ) const
 {
     assert(in.getOutputBits() == 1);
-    std::unique_lock<std::mutex> lock(work_mutex);
-    work_cv.wait(lock, [&]()
-    { return !has_hash && num_running == 0; });
-    processing = true;
-    hash_function = in;
-    has_hash = true;
-    best_score = objective_function(in);
-    // Start the workers
-    work_cv.notify_all();
-    // Wait for the workers to all complete
-    work_cv.wait(lock, [&]()
-    { return num_running == 0 && !processing; });
-    has_hash = false;
-    return {hash_function, objective_function(hash_function)};
+    HashResult r{in};
+    input_queue.push(&r);
+    std::unique_lock<std::mutex> l(r.completion_mutex);
+    r.completion_cv.wait(l, [&]()
+    { return r.completed; });
+    return {std::move(r.output), r.score};
 }
 
-ParallelLocalSearch::ParallelLocalSearch( ObjectiveFunction& function,
-                                          uint64_t num_threads )
-        : objective_function(function)
-        , num_threads(num_threads)
-        , num_complete(num_threads)
+ParallelLocalSearch::ParallelLocalSearch(                                          uint64_t num_threads )
+        : num_threads(num_threads)
+        , input_queue(32)
+        , shutting_down(false)
 {
+    pthread_barrier_init(&sync_barrier, NULL, num_threads);
     for ( uint64_t i = 0; i < num_threads; i++ )
         thread_pool.emplace_back([i, this]()
                                  {
@@ -35,54 +28,69 @@ ParallelLocalSearch::ParallelLocalSearch( ObjectiveFunction& function,
 
 void ParallelLocalSearch::threadFunction( uint64_t index )
 {
-    std::unique_lock<std::mutex> lock(work_mutex);
-    while ( running ) {
-        work_cv.wait(lock, [&]()
-        { return (num_running == 0 && !processing) || !running; });
-        if ( !running )
+    HashResult* input = nullptr;
+    while ( true ) {
+        if ( index == 0 ) {
+            input = input_queue.pop();
+            if ( input ) {
+                sync_best_hash = input->input;
+                sync_best_score = UINT64_MAX;
+            } else {
+                shutting_down = true;
+            }
+            pthread_barrier_wait(&sync_barrier);
+        } else {
+            pthread_barrier_wait(&sync_barrier);
+        }
+
+        if ( shutting_down.load() )
             break;
 
-        num_running++;
-
         uint64_t current_val = UINT64_MAX;
-        uint64_t next_val = best_score;
-        HashFunction f = hash_function;
-        while ( next_val < current_val ) {
-            num_complete--;
-            lock.unlock();
+        uint64_t next_val = sync_best_score;
+        HashFunction f = sync_best_hash;
 
+        pthread_barrier_wait(&sync_barrier);
+
+        do {
             current_val = next_val;
             next_val = improve(f, current_val, index);
 
-            lock.lock();
-            if ( next_val < best_score ) {
-                hash_function = std::move(f);
-                best_score = next_val;
+            if ( next_val <= current_val ) {
+                std::lock_guard<std::mutex> l(sync_mutex);
+                if ( next_val < sync_best_score ) {
+                    sync_best_score = next_val;
+                    sync_best_hash = std::move(f);
+                }
             }
-            num_complete++;
-            if ( num_complete != num_threads )
-                loop_cv.wait(lock, [&]()
-                { return num_complete == num_threads; });
-            else
-                loop_cv.notify_all();
-            f = hash_function;
-            next_val = best_score;
-        }
 
-        num_running--;
-        if ( num_running == 0 ) {
-            processing = false;
-            work_cv.notify_all();
+            pthread_barrier_wait(&sync_barrier);
+
+            f = sync_best_hash;
+            next_val = sync_best_score;
+
+            pthread_barrier_wait(&sync_barrier);
+        } while ( next_val < current_val );
+
+        if ( index == 0 ) {
+            assert(input);
+            input->output = std::move(sync_best_hash);
+            input->score = sync_best_score;
+            input->completion_mutex.lock();
+            input->completed = true;
+            // Must notify under lock to prevent thread from cleaning up
+            input->completion_cv.notify_one();
+            input->completion_mutex.unlock();
         }
     }
 }
 
 ParallelLocalSearch::~ParallelLocalSearch()
 {
-    running = false;
-    work_cv.notify_all();
+    input_queue.push(nullptr);
     for ( auto& thread : thread_pool )
         thread.join();
+    pthread_barrier_destroy(&sync_barrier);
 }
 
 uint64_t ParallelLocalSearch::improve( HashFunction& function,
@@ -100,7 +108,7 @@ uint64_t ParallelLocalSearch::improve( HashFunction& function,
             for ( uint64_t val = Term::KEEP; val <= Term::DONT_CARE; val++ ) {
                 if ( old_term.get(term_bit) != val ) {
                     term.set(term_bit, (Term::BitValue)val);
-                    uint64_t score = objective_function(function);
+                    uint64_t score = (*objective_function)(function);
                     if ( score < current_val ) {
                         best_term = term;
                         best_location = &term;
@@ -112,7 +120,7 @@ uint64_t ParallelLocalSearch::improve( HashFunction& function,
             if ( old_term.isInit() ) {
                 // Check the negated term
                 term.flipNegation();
-                uint64_t score = objective_function(function);
+                uint64_t score = (*objective_function)(function);
                 if ( score < current_val ) {
                     best_term = term;
                     best_location = &term;
@@ -121,7 +129,7 @@ uint64_t ParallelLocalSearch::improve( HashFunction& function,
 
                 // Check the empty term
                 term.clear();
-                score = objective_function(function);
+                score = (*objective_function)(function);
                 if ( score < current_val ) {
                     best_term = term;
                     best_location = &term;
@@ -140,4 +148,9 @@ uint64_t ParallelLocalSearch::improve( HashFunction& function,
     }
 
     return current_val;
+}
+
+void ParallelLocalSearch::setObjectiveFunction( ObjectiveFunction& objective_function )
+{
+    this->objective_function = &objective_function;
 }

@@ -14,7 +14,7 @@ protected:
     {
     }
 
-    void mutate( const MemeticAlgorithm& mimetic_algorithm,
+    void mutate( const MemeticAlgorithm& memetic_algorithm,
                  std::pair<HashFunction, uint64_t>& hash_function,
                  uint64_t num_mutations )
     {
@@ -65,14 +65,14 @@ public:
     {
     }
 
-    void operator()( MemeticAlgorithm& mimetic_algorithm,
+    void operator()( MemeticAlgorithm& memetic_algorithm,
                      Population& pop ) override
     {
         std::uniform_real_distribution<float> dist(0, max_mutation_rate);
         const auto& best = pop.best();
         const uint64_t num_terms = best.first.getOutputBits() * best.first.getMaxTerms();
         for ( auto& member : pop.getMembers() ) {
-            RandomMutation<URBG>::mutate(mimetic_algorithm, member, std::ceil(num_terms * dist(this->urbg)));
+            RandomMutation<URBG>::mutate(memetic_algorithm, member, std::ceil(num_terms * dist(this->urbg)));
         }
         pop.reheap();
     }
@@ -94,14 +94,14 @@ public:
     {
     }
 
-    void operator()( MemeticAlgorithm& mimetic_algorithm,
+    void operator()( MemeticAlgorithm& memetic_algorithm,
                      Population& pop ) override
     {
         std::normal_distribution<float> dist(mean_mutation_rate, stddev);
         const auto& best = pop.best();
         const uint64_t num_terms = best.first.getOutputBits() * best.first.getMaxTerms();
         for ( auto& member : pop.getMembers() ) {
-            RandomMutation<URBG>::mutate(mimetic_algorithm, member, std::ceil(num_terms * dist(this->urbg)));
+            RandomMutation<URBG>::mutate(memetic_algorithm, member, std::ceil(num_terms * dist(this->urbg)));
         }
         pop.reheap();
     }
@@ -131,7 +131,7 @@ public:
     {
     }
 
-    void operator()( MemeticAlgorithm& mimetic_algorithm,
+    void operator()( MemeticAlgorithm& memetic_algorithm,
                      Population& pop ) override
     {
         std::uniform_real_distribution<float> dist01;
@@ -142,7 +142,7 @@ public:
         const auto& best = pop.best();
         const uint64_t num_terms = best.first.getOutputBits() * best.first.getMaxTerms();
         for ( auto& member : pop.getMembers() ) {
-            RandomMutation<URBG>::mutate(mimetic_algorithm, member, std::ceil(num_terms * dist(this->urbg)));
+            RandomMutation<URBG>::mutate(memetic_algorithm, member, std::ceil(num_terms * dist(this->urbg)));
         }
     }
 

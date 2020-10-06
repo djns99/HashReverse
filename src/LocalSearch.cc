@@ -2,22 +2,30 @@
 #include <iostream>
 
 LocalSearch::LocalSearch( LocalSearchMode mode,
-                          ObjectiveFunction& function )
+                          uint64_t num_threads )
         : search_mode(mode)
-        , objective_function(function)
 {
+    if ( search_mode == LocalSearchMode::PARALLEL ) {
+        parallel_search = std::make_unique<ParallelLocalSearch>(num_threads);
+    } else {
+        assert(num_threads == 1);
+    }
 }
 
 std::pair<HashFunction, uint64_t> LocalSearch::operator()( const HashFunction& in ) const
 {
-    uint64_t current_val = UINT64_MAX;
-    uint64_t next_val = objective_function(in);
-    HashFunction f = in;
-    while ( next_val < current_val ) {
-        current_val = next_val;
-        next_val = improve(f, current_val);
+    if ( search_mode == LocalSearchMode::PARALLEL ) {
+        return (*parallel_search)(in);
+    } else {
+        uint64_t current_val = UINT64_MAX;
+        uint64_t next_val = (*objective_function)(in);
+        HashFunction f = in;
+        while ( next_val < current_val ) {
+            current_val = next_val;
+            next_val = improve(f, current_val);
+        }
+        return {std::move(f), current_val};
     }
-    return {std::move(f), current_val};
 }
 
 uint64_t LocalSearch::improve( HashFunction& function,
@@ -34,7 +42,7 @@ uint64_t LocalSearch::improve( HashFunction& function,
                 for ( uint64_t val = Term::KEEP; val <= Term::DONT_CARE; val++ ) {
                     if ( old_term.get(term_bit) != val ) {
                         term.set(term_bit, (Term::BitValue)val);
-                        uint64_t score = objective_function(function);
+                        uint64_t score = (*objective_function)(function);
                         if ( score < current_val ) {
                             if ( search_mode == LocalSearchMode::FIRST_IMPROVEMENT ) {
                                 return score;
@@ -50,7 +58,7 @@ uint64_t LocalSearch::improve( HashFunction& function,
                 if ( old_term.isInit() ) {
                     // Check the negated term
                     term.flipNegation();
-                    uint64_t score = objective_function(function);
+                    uint64_t score = (*objective_function)(function);
                     if ( score < current_val ) {
                         if ( search_mode == LocalSearchMode::FIRST_IMPROVEMENT ) {
                             return score;
@@ -63,7 +71,7 @@ uint64_t LocalSearch::improve( HashFunction& function,
 
                     // Check the empty term
                     term.clear();
-                    score = objective_function(function);
+                    score = (*objective_function)(function);
                     if ( score < current_val ) {
                         if ( search_mode == LocalSearchMode::FIRST_IMPROVEMENT ) {
                             return score;
@@ -82,10 +90,18 @@ uint64_t LocalSearch::improve( HashFunction& function,
     }
 
     // Reapply the best improvement we found
-    if ( search_mode == LocalSearchMode::BEST_IMPROVEMENT && best_location ) {
+    if ( best_location ) {
+        assert(search_mode == LocalSearchMode::BEST_IMPROVEMENT);
         *best_location = best_term;
     }
 
     // Return
     return current_val;
+}
+
+void LocalSearch::setObjectiveFunction( ObjectiveFunction& objective_function )
+{
+    this->objective_function = &objective_function;
+    if(parallel_search)
+        parallel_search->setObjectiveFunction(objective_function);
 }

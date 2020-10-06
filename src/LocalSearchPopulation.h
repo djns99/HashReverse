@@ -1,25 +1,27 @@
 #pragma once
+
 #include "PipelineStage.h"
 #include "LocalSearch.h"
 
 class LocalSearchPopulation : public PipelineStage
 {
 public:
-    LocalSearchPopulation(LocalSearchMode mode)
+    explicit LocalSearchPopulation( LocalSearchMode mode,
+                                    uint64_t num_threads = 1 )
+            : search(mode, num_threads)
     {
 
     }
 
     void operator()( MemeticAlgorithm& memetic_algorithm,
-                     Population& population )
+                     Population& population ) override
     {
-        LocalSearch search(mode, memetic_algorithm.getObjectiveFunction());
-        for(auto& func : population.getMembers())
-        {
+        search.setObjectiveFunction(memetic_algorithm.getObjectiveFunction());
+        for ( auto& func : population.getMembers() ) {
             func = search(func.first);
         }
     };
 
 private:
-    LocalSearchMode mode;
+    LocalSearch search;
 };

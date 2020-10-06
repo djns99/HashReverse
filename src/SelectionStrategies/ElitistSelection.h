@@ -10,7 +10,7 @@ public:
     {
     }
 
-    void operator()( MemeticAlgorithm& mimetic_algorithm,
+    void operator()( MemeticAlgorithm& memetic_algorithm,
                      Population& population ) override
     {
         population.resize(std::ceil(population.size() * survivor_percentage));

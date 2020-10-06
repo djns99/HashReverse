@@ -2,6 +2,7 @@
 
 #include "../LocalSearch.h"
 #include "../ObjectiveFunction.h"
+#include "../MemeticAlgorithm.h"
 #include "RandomGenerator.h"
 
 template<class URBG>
@@ -14,18 +15,19 @@ public:
                           float dont_care_weight,
                           float all_zero_prob,
                           URBG& urbg,
-                          LocalSearchMode mode )
+                          LocalSearchMode mode,
+                          uint64_t num_threads = 1)
             : RandomGenerator<URBG>(input_bits, output_bits, max_depth, dont_care_weight, all_zero_prob, urbg)
-            , search_mode(mode)
+            , search(mode, num_threads)
     {
     }
 
     HashFunction operator()( const MemeticAlgorithm& memetic_algorithm ) override
     {
-        LocalSearch search(search_mode, memetic_algorithm.getObjectiveFunction());
+        search.setObjectiveFunction(memetic_algorithm.getObjectiveFunction());
         return search(RandomGenerator<URBG>::operator()()).first;
     }
 
 private:
-    LocalSearchMode search_mode;
+    LocalSearch search;
 };

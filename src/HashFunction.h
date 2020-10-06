@@ -86,6 +86,11 @@ public:
     {
         return num_calls;
     }
+
+    static void resetCalls()
+    {
+        num_calls = 0;
+    }
 private:
     static uint64_t murmur64(uint64_t code) {
         code ^= code >> 33u;

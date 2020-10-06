@@ -18,6 +18,7 @@
 #include "src/SelectionStrategies/TournamentSelection.h"
 #include "src/LocalSearchPopulation.h"
 #include "src/ReevaluatePopulation.h"
+#include "src/RandomWalk.h"
 
 #include <iostream>
 
@@ -27,10 +28,10 @@ int main()
     std::cout << "Seed: " << seed << std::endl;
     std::mt19937_64 twister(seed);
 
-    uint64_t num_inputs = 32;
+    uint64_t num_inputs = 10;
     uint64_t num_outputs = 1;
     uint64_t max_terms = 8;
-    const float dont_care_weight = 10.0;
+    const float dont_care_weight = 5.0;
     const float all_zero_prob = 1.0f / num_inputs;
 
     RandomGenerator hash_gen(num_inputs, num_outputs, max_terms, dont_care_weight, all_zero_prob, twister);
@@ -62,6 +63,7 @@ int main()
     // Local Search pipeline stage - done here cause the population is the smallest
     // pipeline.emplace_back(new LocalSearchPopulation(LocalSearchMode::FIRST_IMPROVEMENT));
     // pipeline.emplace_back(new LocalSearchPopulation(LocalSearchMode::BEST_IMPROVEMENT));
+    pipeline.emplace_back(new LocalSearchPopulation(LocalSearchMode::PARALLEL, 12));
 
     // Crossover strategy
     // pipeline.emplace_back(new SimpleTermCrossover<std::mt19937_64>(6, twister));
@@ -77,27 +79,27 @@ int main()
     // Recalculate the objective functions after crossover and mutation
     pipeline.emplace_back(new ReevaluatePopulation());
 
-    MemeticAlgorithm mimetic_algorithm(
+    MemeticAlgorithm memetic_algorithm(
             // Objective Function
-            // std::make_unique<CachedObjectiveFunction>(h, std::min(1ull << num_inputs, 65536ull), twister),
-            std::make_unique<UncachedObjectiveFunction<std::mt19937_64>>(h,
-                                                                         std::min(1ull << num_inputs, 1024ull),
-                                                                         twister),
+            std::make_unique<CachedObjectiveFunction>(h, std::min(1ull << num_inputs, 65536ull), twister),
+            // std::make_unique<UncachedObjectiveFunction<std::mt19937_64>>(h,
+            //                                                             std::min(1ull << num_inputs, 1024ull),
+            //                                                             twister),
 
             // Solution Generator
-            std::make_unique<LocalSearchGenerator<std::mt19937_64>>(num_inputs,
-                                                                    num_outputs,
-                                                                    max_terms,
-                                                                    dont_care_weight,
-                                                                    all_zero_prob,
-                                                                    twister,
-                                                                    LocalSearchMode::FIRST_IMPROVEMENT),
-            // std::make_unique<RandomGenerator<std::mt19937_64>>(num_inputs,
-            //                                                    num_outputs,
-            //                                                    max_terms,
-            //                                                    dont_care_weight,
-            //                                                    all_zero_prob,
-            //                                                    twister),
+            // std::make_unique<LocalSearchGenerator<std::mt19937_64>>(num_inputs,
+            //                                                         num_outputs,
+            //                                                         max_terms,
+            //                                                         dont_care_weight,
+            //                                                         all_zero_prob,
+            //                                                         twister,
+            //                                                         LocalSearchMode::FIRST_IMPROVEMENT),
+            std::make_unique<RandomGenerator<std::mt19937_64>>(num_inputs,
+                                                               num_outputs,
+                                                               max_terms,
+                                                               dont_care_weight,
+                                                               all_zero_prob,
+                                                               twister),
 
             std::make_unique<Pipeline>(pipeline),
             // Reconstruction Strategies
@@ -113,7 +115,9 @@ int main()
     const uint64_t num_to_evaluate = 1ull << std::min(num_inputs, 20ul);
     UncachedObjectiveFunction objective_function(h, num_to_evaluate, twister);
 
-    HashFunction best = mimetic_algorithm.run(100,
+    const uint64_t num_iterations = 1000;
+    std::cout << "Running memetic algorithm" << std::endl;
+    HashFunction best = memetic_algorithm.run(100,
                                               [&]( uint64_t iter,
                                                    Population& population )
                                               {
@@ -121,9 +125,9 @@ int main()
                                                       if ( objective_function(population.best().first) == 0 )
                                                           return true;
                                                       else
-                                                          population.reevaluate(mimetic_algorithm.getObjectiveFunction());
+                                                          population.reevaluate(memetic_algorithm.getObjectiveFunction());
                                                   }
-                                                  return iter >= 1000;
+                                                  return iter >= num_iterations;
                                               });
 
     // for ( uint64_t i = 0; i < num_to_evaluate; i++ ) {
@@ -131,7 +135,36 @@ int main()
     //         std::cout << i << " | " << best(i) << " != " << h(i) << std::endl;
     // }
 
-    std::cout << "True score: " << objective_function.normalize(objective_function(best))
-              << std::endl;
+    std::cout << "\nTrue score: " << objective_function.normalize(objective_function(best)) << std::endl;
     std::cout << "Total calls: " << HashFunction::getNumCalls() << std::endl;
+
+    RandomWalk walk(
+            // std::make_unique<CachedObjectiveFunction>(h, std::min(1ull << num_inputs, 65536ull), twister),
+            std::make_unique<UncachedObjectiveFunction<std::mt19937_64>>(h,
+                                                                         std::min(1ull << num_inputs, 1024ull),
+                                                                         twister),
+            std::make_unique<RandomGenerator<std::mt19937_64>>(num_inputs,
+                                                               num_outputs,
+                                                               max_terms,
+                                                               dont_care_weight,
+                                                               all_zero_prob,
+                                                               twister),
+            twister);
+
+    HashFunction::resetCalls();
+    std::cout << "Running random walk" << std::endl;
+    HashFunction random_best = walk.run([&]( uint64_t iter,
+                                             Population& population )
+                                        {
+                                            if ( population.best().second == 0 ) {
+                                                if ( objective_function(population.best().first) == 0 )
+                                                    return true;
+                                                else
+                                                    population.reevaluate(memetic_algorithm.getObjectiveFunction());
+                                            }
+                                            return iter >= num_iterations;
+                                        });
+    std::cout << "\nRandom true score: " << objective_function.normalize(objective_function(random_best)) << std::endl;
+    std::cout << "Total calls: " << HashFunction::getNumCalls() << std::endl;
+
 }
