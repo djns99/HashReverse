@@ -10,8 +10,8 @@ class MemeticAlgorithm;
 class Pipeline
 {
 public:
-    explicit Pipeline( const std::vector<std::unique_ptr<PipelineStage>>& stages )
-            : stages(stages)
+    explicit Pipeline( std::vector<std::unique_ptr<PipelineStage>>&& stages )
+            : stages(std::move(stages))
     {
     }
 
@@ -26,5 +26,5 @@ public:
     }
 
 private:
-    const std::vector<std::unique_ptr<PipelineStage>>& stages;
+    const std::vector<std::unique_ptr<PipelineStage>> stages;
 };

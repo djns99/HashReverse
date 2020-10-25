@@ -25,6 +25,7 @@ private:
     void threadFunction( uint64_t index );
 
     uint64_t improve( HashFunction& f,
+                      ObjectiveFunction& objective_function,
                       uint64_t current_score,
                       uint64_t i );
 

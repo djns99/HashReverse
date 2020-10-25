@@ -49,15 +49,15 @@ private:
 
     void updateBest( const std::pair<HashFunction, uint64_t>& candidate );
 
-    void printPopulation( const Population& ) const;
+    static void printPopulation( const Population& ) ;
 
     std::unique_ptr<ObjectiveFunction> objective_function;
     std::unique_ptr<SolutionGenerator> generator;
     std::unique_ptr<Pipeline> processing_pipeline;
     std::unique_ptr<ReconstructionStrategy> reconstruction_strategy;
     std::unique_ptr<ConvergenceCriterion> convergence_criterion;
-    double restart_preservation_percentage;
-    uint64_t pop_size;
+    const double restart_preservation_percentage = 0.0;
+    uint64_t pop_size = 0;
 
-    std::pair<HashFunction, uint64_t> best;
+    std::pair<HashFunction, uint64_t> best{};
 };

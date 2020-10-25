@@ -14,7 +14,7 @@ public:
 
     Population( Population&& ) = default;
 
-    Population& operator=( const Population& ) = default;
+    Population& operator=( const Population& other ) = default;
 
     Population& operator=( Population&& ) = default;
 
@@ -56,5 +56,5 @@ private:
         }
     };
 
-    CompareGreater heap_comparator;
+    CompareGreater heap_comparator{};
 };

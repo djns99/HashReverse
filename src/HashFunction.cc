@@ -9,10 +9,10 @@ HashFunction::HashFunction( uint64_t num_input_bits,
 {
 }
 
-uint64_t HashFunction::num_calls = 0;
+std::atomic<uint64_t> HashFunction::num_calls = 0;
 uint64_t HashFunction::operator()( uint64_t input ) const
 {
-    num_calls++;
+    num_calls.fetch_add(1, std::memory_order_relaxed);
     uint64_t output = 0x0;
     for ( uint64_t i = 0; i < num_output_bits; i++ ) {
         uint64_t set = 0;

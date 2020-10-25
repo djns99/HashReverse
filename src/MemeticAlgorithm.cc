@@ -7,7 +7,8 @@ HashFunction MemeticAlgorithm::run( uint64_t population_size,
 {
     pop_size = population_size;
     Population p = generateInitial(population_size);
-    for ( uint64_t i = 0; !should_stop(i, p); i++ ) {
+    uint64_t i;
+    for ( i = 0; !should_stop(i, p); i++ ) {
         Population old = p;
         Population new_pop = (*processing_pipeline)(*this, p);
         p = (*reconstruction_strategy)(old, new_pop);
@@ -19,8 +20,10 @@ HashFunction MemeticAlgorithm::run( uint64_t population_size,
             p = restartPopulation(p);
         }
         assert(p.size() == population_size);
-        std::cout << i << ": " << best.second << "(" << p.best().second << ")" << "\t\t\t\r" << std::flush;
+        std::cerr << i << ": " << best.second << "(" << p.best().second << ")" << "\t\t\t\r" << std::flush;
     }
+    assert(best.second != UINT64_MAX);
+    std::cerr << i << ": " << best.second << "\t\t\t\t\t\r" << std::endl;
 
     return (p.best().second < best.second) ? p.best().first : best.first;
 }
@@ -33,12 +36,13 @@ Population MemeticAlgorithm::generateInitial( uint64_t size )
         uint64_t score = (*objective_function)(f);
         p.add(f, score);
     }
+    updateBest(p.best());
     return p;
 }
 
 Population MemeticAlgorithm::restartPopulation( Population& population )
 {
-    std::cout << "Restart" << std::endl;
+    std::cerr << "Restart" << std::endl;
     const uint64_t num_to_preserve = pop_size * restart_preservation_percentage;
 
     updateBest(population.best());
@@ -55,11 +59,10 @@ Population MemeticAlgorithm::restartPopulation( Population& population )
         new_pop.add(std::move(f), score);
     }
     population.resize(0);
-    std::cout << "Restart complete" << std::endl;
     return new_pop;
 }
 
-void MemeticAlgorithm::printPopulation( const Population& pop ) const
+void MemeticAlgorithm::printPopulation( const Population& pop )
 {
     uint64_t mem = 0;
     std::cout << std::endl;
@@ -68,11 +71,11 @@ void MemeticAlgorithm::printPopulation( const Population& pop ) const
         uint64_t input_mask_lo = ~0ull >> (64 - func.first.getInputBits() * 2);
         for ( auto& pla : func.first.getPLAs() )
             for ( auto& term : pla )
-                printf(" %s0x%03lx", term.isNegated() ? "~" : "", term.value_lo & input_mask_lo);
-        std::cout << std::endl;
+                fprintf(stderr, " %s0x%03lx", term.isNegated() ? "~" : "", term.value_lo & input_mask_lo);
+        std::cerr << std::endl;
     }
-    std::cout << std::endl;
-    std::cout << std::endl;
+    std::cerr << std::endl;
+    std::cerr << std::endl;
 }
 
 void MemeticAlgorithm::updateBest( const std::pair<HashFunction, uint64_t>& candidate )

@@ -1,36 +1,20 @@
-#include "src/HashFunction.h"
-#include "src/LocalSearch.h"
-#include "src/MemeticAlgorithm.h"
-#include "src/ObjectiveFunction.h"
-#include "src/ReconstructionStrategies/CommaOperator.h"
-#include "src/ReconstructionStrategies/PlusOperator.h"
-#include "src/SolutionGenerators/LocalSearchGenerator.h"
-#include "src/SolutionGenerators/RandomGenerator.h"
-#include "src/RecombinationOperators/SimpleCrossover.h"
-#include "src/RecombinationOperators/WeightedCrossover.h"
-#include "src/MutationStrategies/RandomMutation.h"
-#include "src/ConvergenceCriteria/AlwaysFalseConvergence.h"
-#include "src/ConvergenceCriteria/PercentConvergence.h"
-#include "src/ConvergenceCriteria/FullConvergence.h"
-#include "src/SelectionStrategies/PassthroughSelection.h"
-#include "src/SelectionStrategies/ElitistSelection.h"
-#include "src/SelectionStrategies/RankSelection.h"
-#include "src/SelectionStrategies/TournamentSelection.h"
-#include "src/LocalSearchPopulation.h"
-#include "src/ReevaluatePopulation.h"
-#include "src/RandomWalk.h"
+#include "Evaluate.h"
 
-#include <iostream>
-
-int main()
+void random( int argc,
+             char** argv )
 {
+    uint64_t thread_pool_size = std::thread::hardware_concurrency();
+    if ( argc == 2 )
+        thread_pool_size = atoi(argv[1]);
+    ThreadPool::getThreadPool(thread_pool_size);
+
     uint64_t seed = std::random_device()();
     std::cout << "Seed: " << seed << std::endl;
     std::mt19937_64 twister(seed);
 
-    uint64_t num_inputs = 10;
+    uint64_t num_inputs = 16;
     uint64_t num_outputs = 1;
-    uint64_t max_terms = 8;
+    uint64_t max_terms = 12;
     const float dont_care_weight = 5.0;
     const float all_zero_prob = 1.0f / num_inputs;
 
@@ -53,118 +37,40 @@ int main()
         std::cout << "Balance score (0 to 1): " << score << std::endl;
     } while ( abs(score - 0.5) > 0.1 );
 
-    std::vector<std::unique_ptr<PipelineStage>> pipeline;
-    // Selection strategy
-    pipeline.emplace_back(new RankSelection<std::mt19937_64>(0.6, twister));
-    // pipeline.emplace_back(new TournamentSelection<std::mt19937_64>(0.6, 5, twister));
-    // pipeline.emplace_back(new ElitistSelection( 0.6, twister ));
-    // pipeline.emplace_back(new PassthroughSelection());
+    UncachedObjectiveFunction partial(h, std::min(1ull << num_inputs, 1024ull), twister);
+    UncachedObjectiveFunction full(h, std::min(1ull << num_inputs, 65536ull), twister);
+    evaluateHash(full, partial, twister, num_inputs, num_outputs, max_terms, thread_pool_size);
+}
 
-    // Local Search pipeline stage - done here cause the population is the smallest
-    // pipeline.emplace_back(new LocalSearchPopulation(LocalSearchMode::FIRST_IMPROVEMENT));
-    // pipeline.emplace_back(new LocalSearchPopulation(LocalSearchMode::BEST_IMPROVEMENT));
-    pipeline.emplace_back(new LocalSearchPopulation(LocalSearchMode::PARALLEL, 12));
+void fileEvaluation( int argc,
+                     char** argv )
+{
+    auto& tp = ThreadPool::getThreadPool(atoi(argv[1]));
+    tp.resize(atoi(argv[1]));
+    uint64_t thread_pool_size = tp.getNumThreads();
 
-    // Crossover strategy
-    // pipeline.emplace_back(new SimpleTermCrossover<std::mt19937_64>(6, twister));
-    // pipeline.emplace_back(new SimpleBitCrossover<std::mt19937_64>(6, twister));
-    pipeline.emplace_back(new WeightedTermCrossover<std::mt19937_64>(6, twister));
-    // pipeline.emplace_back(new WeightedBitCrossover<std::mt19937_64>(6, twister));
+    uint64_t seed = std::random_device()();
+    std::cerr << "Seed: " << seed << std::endl;
+    std::mt19937_64 twister(seed);
 
-    // Mutation strategy
-    // pipeline.emplace_back(new NormalDistRandomMutation<std::mt19937_64>(0.1, 0.02, twister));
-    pipeline.emplace_back(new BimodalNormalDistRandomMutation<std::mt19937_64>(0.1, 0.02, 0.3, 0.05, 0.8, twister));
-    // pipeline.emplace_back(new UniformDistRandomMutation<std::mt19937_64>(0.5, twister));
+    for ( int i = 2; i < argc; i++ ) {
+        if ( !csv )
+            std::cout << "Evaluating: " << argv[i] << std::endl;
+        else
+            std::cout << std::endl << argv[i] << std::endl;
+        FileReaderObjectiveFunction full(argv[i], twister);
+        FileReaderObjectiveFunction partial(argv[i], twister, 8192ull);
+        uint64_t max_terms = full.getInputBits() * full.getInputBits();
+        evaluateHash(full, partial, twister, full.getInputBits(), full.getOutputBits(), max_terms, thread_pool_size);
+    }
+}
 
-    // Recalculate the objective functions after crossover and mutation
-    pipeline.emplace_back(new ReevaluatePopulation());
-
-    MemeticAlgorithm memetic_algorithm(
-            // Objective Function
-            std::make_unique<CachedObjectiveFunction>(h, std::min(1ull << num_inputs, 65536ull), twister),
-            // std::make_unique<UncachedObjectiveFunction<std::mt19937_64>>(h,
-            //                                                             std::min(1ull << num_inputs, 1024ull),
-            //                                                             twister),
-
-            // Solution Generator
-            // std::make_unique<LocalSearchGenerator<std::mt19937_64>>(num_inputs,
-            //                                                         num_outputs,
-            //                                                         max_terms,
-            //                                                         dont_care_weight,
-            //                                                         all_zero_prob,
-            //                                                         twister,
-            //                                                         LocalSearchMode::FIRST_IMPROVEMENT),
-            std::make_unique<RandomGenerator<std::mt19937_64>>(num_inputs,
-                                                               num_outputs,
-                                                               max_terms,
-                                                               dont_care_weight,
-                                                               all_zero_prob,
-                                                               twister),
-
-            std::make_unique<Pipeline>(pipeline),
-            // Reconstruction Strategies
-            std::make_unique<PurePlusOperator>(),
-            // std::make_unique<PureCommaOperator>(),
-
-            // Convergence Strategies
-            // std::make_unique<FullConvergence>(),
-            std::make_unique<PercentConvergence>(0.99),
-            // std::make_unique<AlwaysFalseConvergence>(),
-            0.3);
-
-    const uint64_t num_to_evaluate = 1ull << std::min(num_inputs, 20ul);
-    UncachedObjectiveFunction objective_function(h, num_to_evaluate, twister);
-
-    const uint64_t num_iterations = 1000;
-    std::cout << "Running memetic algorithm" << std::endl;
-    HashFunction best = memetic_algorithm.run(100,
-                                              [&]( uint64_t iter,
-                                                   Population& population )
-                                              {
-                                                  if ( population.best().second == 0 ) {
-                                                      if ( objective_function(population.best().first) == 0 )
-                                                          return true;
-                                                      else
-                                                          population.reevaluate(memetic_algorithm.getObjectiveFunction());
-                                                  }
-                                                  return iter >= num_iterations;
-                                              });
-
-    // for ( uint64_t i = 0; i < num_to_evaluate; i++ ) {
-    //     if ( best(i) != h(i) )
-    //         std::cout << i << " | " << best(i) << " != " << h(i) << std::endl;
-    // }
-
-    std::cout << "\nTrue score: " << objective_function.normalize(objective_function(best)) << std::endl;
-    std::cout << "Total calls: " << HashFunction::getNumCalls() << std::endl;
-
-    RandomWalk walk(
-            // std::make_unique<CachedObjectiveFunction>(h, std::min(1ull << num_inputs, 65536ull), twister),
-            std::make_unique<UncachedObjectiveFunction<std::mt19937_64>>(h,
-                                                                         std::min(1ull << num_inputs, 1024ull),
-                                                                         twister),
-            std::make_unique<RandomGenerator<std::mt19937_64>>(num_inputs,
-                                                               num_outputs,
-                                                               max_terms,
-                                                               dont_care_weight,
-                                                               all_zero_prob,
-                                                               twister),
-            twister);
-
-    HashFunction::resetCalls();
-    std::cout << "Running random walk" << std::endl;
-    HashFunction random_best = walk.run([&]( uint64_t iter,
-                                             Population& population )
-                                        {
-                                            if ( population.best().second == 0 ) {
-                                                if ( objective_function(population.best().first) == 0 )
-                                                    return true;
-                                                else
-                                                    population.reevaluate(memetic_algorithm.getObjectiveFunction());
-                                            }
-                                            return iter >= num_iterations;
-                                        });
-    std::cout << "\nRandom true score: " << objective_function.normalize(objective_function(random_best)) << std::endl;
-    std::cout << "Total calls: " << HashFunction::getNumCalls() << std::endl;
-
+int main( int argc,
+          char** argv )
+{
+    if ( argc <= 2 )
+        random(argc, argv);
+    else if ( argc >= 3 )
+        fileEvaluation(argc, argv);
+    return 0;
 }

@@ -10,6 +10,8 @@ file(GLOB_RECURSE SOURCE_FILES "src/*.cc")
 
 add_executable(HashReverse main.cc ${SOURCE_FILES})
 add_executable(test test.cc ${SOURCE_FILES})
+add_executable(bench bench.cc ${SOURCE_FILES})
 
 target_link_libraries(HashReverse pthread)
 target_link_libraries(test pthread)
+target_link_libraries(bench pthread)

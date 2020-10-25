@@ -40,23 +40,36 @@ class ObjectiveFunction
 {
 public:
     virtual uint64_t operator()( const HashFunction& function ) = 0;
+    static void incrementCalls();
+    static void resetCalls();
+    static uint64_t getNumCalls();
 
+    ObjectiveFunction() = default;
     ObjectiveFunction( uint64_t output_bits,
                        uint64_t num_samples )
             : output_bits(output_bits)
             , num_samples(num_samples)
     {
-
     }
+
+    virtual ~ObjectiveFunction() = default;
 
     [[nodiscard]] double normalize( uint64_t score ) const
     {
+        if(score >= num_samples * output_bits)
+            return 1.0;
         return (double)score / (double)(num_samples * output_bits);
     }
 
+    // Must be called in a thread safe manner
+    // Returns an object that can be used by a different thread
+    virtual std::unique_ptr<ObjectiveFunction> clone() = 0;
+
+
 protected:
-    uint64_t output_bits;
-    uint64_t num_samples;
+    uint64_t output_bits = 0;
+    uint64_t num_samples = 0;
+    static std::atomic<uint64_t> num_calls;
 };
 
 class CachedObjectiveFunction : public ObjectiveFunction
@@ -93,9 +106,11 @@ public:
 
         // Add some common must have cases
         for ( uint64_t i = 0; i < reference_function.getInputBits(); i++ ) {
-            samples.emplace(1ull << i, reference_function(i));
+            samples.emplace(1ull << i, reference_function(1ull << i));
+            samples.emplace(~(1ull << i) & max_input, reference_function(~(1ull << i) & max_input));
             uint64_t all_ones = ~0ull >> (63 - i);
             samples.emplace(all_ones, reference_function(all_ones));
+            samples.emplace(~all_ones & max_input, reference_function(~all_ones & max_input));
         }
         samples.emplace(0, reference_function(0));
         this->num_samples = samples.size();
@@ -103,6 +118,7 @@ public:
 
     uint64_t operator()( const HashFunction& function ) override
     {
+        incrementCalls();
         uint64_t total_distance = 0x0;
         // Return the sum of the Hamming distances for each sample
         for ( auto& sample : samples )
@@ -111,11 +127,16 @@ public:
         return total_distance;
     }
 
+    std::unique_ptr<ObjectiveFunction> clone() override
+    {
+        return std::make_unique<CachedObjectiveFunction>(*this);
+    }
+
 private:
-    std::map<uint64_t, uint64_t> samples;
+    std::unordered_map<uint64_t, uint64_t> samples;
 };
 
-template<class URBG>
+template<class URBG, bool ALWAYS_CHECK = true>
 class UncachedObjectiveFunction : public ObjectiveFunction
 {
 public:
@@ -126,12 +147,26 @@ public:
             , reference_function(reference_function)
             , num_samples(num_samples)
             , dist(0, ~0ull >> (64u - reference_function.getInputBits()))
-            , urbg(urbg)
+            , urbg(std::uniform_int_distribution<uint64_t>{}(urbg))
     {
+        if(ALWAYS_CHECK) {
+            uint64_t max_input = ~0u >> (64u - reference_function.getInputBits());
+            // Check some common must have cases
+            for ( uint64_t i = 0; i < reference_function.getInputBits(); i++ ) {
+                always_check.emplace(1ull << i, reference_function(1ull << i));
+                always_check.emplace(~(1ull << i) & max_input, reference_function(~(1ull << i) & max_input));
+                uint64_t all_ones = ~0ull >> (63 - i);
+                always_check.emplace(all_ones, reference_function(all_ones));
+                always_check.emplace(~all_ones & max_input, reference_function(~all_ones & max_input));
+            }
+            always_check.emplace(0, reference_function(0));
+            this->num_samples += always_check.size();
+        }
     }
 
     uint64_t operator()( const HashFunction& function ) override
     {
+        incrementCalls();
         uint64_t count = 0;
         if ( num_samples > dist.max() ) {
             for ( uint64_t i = 0; i < num_samples; i++ )
@@ -148,12 +183,30 @@ public:
                 count += __builtin_popcountll(function(val) ^ reference_function(val));
             }
         }
+
+        if( ALWAYS_CHECK ) {
+            for ( const std::pair<const uint64_t, uint64_t>& check_pair : always_check )
+                count += __builtin_popcountll(function(check_pair.first) & check_pair.second);
+        }
+
         return count;
+    }
+
+    std::unique_ptr<ObjectiveFunction> clone() override
+    {
+        auto temp = std::make_unique<UncachedObjectiveFunction>(*this);
+        temp->urbg = URBG(std::uniform_int_distribution<uint64_t>{}(urbg));
+        return temp;
     }
 
 private:
     const HashFunction& reference_function;
     uint64_t num_samples;
     std::uniform_int_distribution<uint64_t> dist;
-    URBG& urbg;
+    URBG urbg; // Store a copy so we can use the clone function to make thread safe versions
+
+    std::unordered_map<uint64_t, uint64_t> always_check;
 };
+
+template<class URBG>
+using TrueUncachedObjectiveFunction = UncachedObjectiveFunction<URBG, false>;

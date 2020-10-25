@@ -13,7 +13,7 @@ std::pair<HashFunction, uint64_t> ParallelLocalSearch::operator()( const HashFun
     return {std::move(r.output), r.score};
 }
 
-ParallelLocalSearch::ParallelLocalSearch(                                          uint64_t num_threads )
+ParallelLocalSearch::ParallelLocalSearch( uint64_t num_threads )
         : num_threads(num_threads)
         , input_queue(32)
         , shutting_down(false)
@@ -29,6 +29,8 @@ ParallelLocalSearch::ParallelLocalSearch(                                       
 void ParallelLocalSearch::threadFunction( uint64_t index )
 {
     HashResult* input = nullptr;
+    ObjectiveFunction* cached_objective_function = nullptr;
+    std::unique_ptr<ObjectiveFunction> thread_objective_function;
     while ( true ) {
         if ( index == 0 ) {
             input = input_queue.pop();
@@ -49,12 +51,20 @@ void ParallelLocalSearch::threadFunction( uint64_t index )
         uint64_t current_val = UINT64_MAX;
         uint64_t next_val = sync_best_score;
         HashFunction f = sync_best_hash;
+        assert(objective_function);
+        if(objective_function != cached_objective_function) {
+            std::lock_guard<std::mutex> l(sync_mutex);
+            if(objective_function != cached_objective_function) {
+                cached_objective_function = objective_function;
+                thread_objective_function = objective_function->clone();
+            }
+        }
 
         pthread_barrier_wait(&sync_barrier);
 
         do {
             current_val = next_val;
-            next_val = improve(f, current_val, index);
+            next_val = improve(f, *thread_objective_function, current_val, index);
 
             if ( next_val <= current_val ) {
                 std::lock_guard<std::mutex> l(sync_mutex);
@@ -87,13 +97,14 @@ void ParallelLocalSearch::threadFunction( uint64_t index )
 
 ParallelLocalSearch::~ParallelLocalSearch()
 {
-    input_queue.push(nullptr);
+    input_queue.shutdown();
     for ( auto& thread : thread_pool )
         thread.join();
     pthread_barrier_destroy(&sync_barrier);
 }
 
 uint64_t ParallelLocalSearch::improve( HashFunction& function,
+                                       ObjectiveFunction& objective_function,
                                        uint64_t current_val,
                                        uint64_t tid )
 {
@@ -108,7 +119,7 @@ uint64_t ParallelLocalSearch::improve( HashFunction& function,
             for ( uint64_t val = Term::KEEP; val <= Term::DONT_CARE; val++ ) {
                 if ( old_term.get(term_bit) != val ) {
                     term.set(term_bit, (Term::BitValue)val);
-                    uint64_t score = (*objective_function)(function);
+                    uint64_t score = objective_function(function);
                     if ( score < current_val ) {
                         best_term = term;
                         best_location = &term;
@@ -120,7 +131,7 @@ uint64_t ParallelLocalSearch::improve( HashFunction& function,
             if ( old_term.isInit() ) {
                 // Check the negated term
                 term.flipNegation();
-                uint64_t score = (*objective_function)(function);
+                uint64_t score = objective_function(function);
                 if ( score < current_val ) {
                     best_term = term;
                     best_location = &term;
@@ -129,7 +140,7 @@ uint64_t ParallelLocalSearch::improve( HashFunction& function,
 
                 // Check the empty term
                 term.clear();
-                score = (*objective_function)(function);
+                score = objective_function(function);
                 if ( score < current_val ) {
                     best_term = term;
                     best_location = &term;
@@ -152,5 +163,6 @@ uint64_t ParallelLocalSearch::improve( HashFunction& function,
 
 void ParallelLocalSearch::setObjectiveFunction( ObjectiveFunction& objective_function )
 {
+    std::lock_guard<std::mutex> l(sync_mutex);
     this->objective_function = &objective_function;
 }

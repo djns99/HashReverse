@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <limits>
 #include <vector>
+#include <atomic>
 
 class HashFunction
 {
@@ -105,5 +106,5 @@ private:
     uint64_t num_output_bits = 0;
     std::vector<std::vector<Term>> hash_function{};
 
-    static uint64_t num_calls;
+    static std::atomic<uint64_t> num_calls;
 };

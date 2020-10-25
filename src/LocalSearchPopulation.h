@@ -17,9 +17,8 @@ public:
                      Population& population ) override
     {
         search.setObjectiveFunction(memetic_algorithm.getObjectiveFunction());
-        for ( auto& func : population.getMembers() ) {
+        for ( auto& func : population.getMembers() )
             func = search(func.first);
-        }
     };
 
 private:

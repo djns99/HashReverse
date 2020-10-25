@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../PipelineStage.h"
+#include "../Math.h"
 #include <iostream>
 
 template<class URBG>
@@ -25,7 +26,7 @@ protected:
         const float invert_weight = 1.0;
         const float base_weight = keep_weight + invert_weight + dont_care_weight;
         const float wipe_weight = 1.0 / pow(base_weight, hash_function.first.getInputBits() / 2.0);
-        const float negate_weight = 0.0;//1.0 / pow(base_weight, hash_function.first.getInputBits());
+        const float negate_weight = 1.0 / pow(base_weight, hash_function.first.getInputBits());
         std::uniform_real_distribution<float> choice_dist(0, base_weight + negate_weight + wipe_weight);
         for ( uint64_t i = 0; i < num_mutations; i++ ) {
             const uint64_t pla = pla_dist(urbg);
@@ -54,7 +55,7 @@ protected:
     const float dont_care_weight;
 };
 
-template<class URBG>
+template<class URBG, bool PARALLEL = false>
 class UniformDistRandomMutation : public RandomMutation<URBG>
 {
 public:
@@ -71,10 +72,20 @@ public:
         std::uniform_real_distribution<float> dist(0, max_mutation_rate);
         const auto& best = pop.best();
         const uint64_t num_terms = best.first.getOutputBits() * best.first.getMaxTerms();
-        for ( auto& member : pop.getMembers() ) {
-            RandomMutation<URBG>::mutate(memetic_algorithm, member, std::ceil(num_terms * dist(this->urbg)));
+        if constexpr ( !PARALLEL ) {
+            for ( auto& member : pop.getMembers() ) {
+                RandomMutation<URBG>::mutate(memetic_algorithm, member, std::ceil(num_terms * dist(this->urbg)));
+            }
+        } else {
+            auto& pool = ThreadPool::getThreadPool();
+            auto& members = pop.getMembers();
+            const uint64_t num_parts = std::min(members.size(), pool.getNumThreads());
+            const uint64_t num_per_part = Math::ceilDiv(members.size(), num_parts);
+            pool.run([&](uint64_t tid){
+                for(uint64_t i = tid * num_per_part; i < (tid + 1) * num_per_part && i < members.size(); i++)
+                    RandomMutation<URBG>::mutate(memetic_algorithm, members[i], std::ceil(num_terms * dist(this->urbg)));
+            }, num_parts);
         }
-        pop.reheap();
     }
 
 private:
@@ -82,6 +93,9 @@ private:
 };
 
 template<class URBG>
+using ParallelUniformDistRandomMutation = UniformDistRandomMutation<URBG, true>;
+
+template<class URBG, bool PARALLEL = false>
 class NormalDistRandomMutation : public RandomMutation<URBG>
 {
 public:
@@ -100,10 +114,20 @@ public:
         std::normal_distribution<float> dist(mean_mutation_rate, stddev);
         const auto& best = pop.best();
         const uint64_t num_terms = best.first.getOutputBits() * best.first.getMaxTerms();
-        for ( auto& member : pop.getMembers() ) {
-            RandomMutation<URBG>::mutate(memetic_algorithm, member, std::ceil(num_terms * dist(this->urbg)));
+        if constexpr ( !PARALLEL ) {
+            for ( auto& member : pop.getMembers() ) {
+                RandomMutation<URBG>::mutate(memetic_algorithm, member, std::ceil(num_terms * dist(this->urbg)));
+            }
+        } else {
+            auto& pool = ThreadPool::getThreadPool();
+            auto& members = pop.getMembers();
+            const uint64_t num_parts = std::min(members.size(), pool.getNumThreads());
+            const uint64_t num_per_part = Math::ceilDiv(members.size(), num_parts);
+            pool.run([&](uint64_t tid){
+                for(uint64_t i = tid * num_per_part; i < (tid + 1) * num_per_part && i < members.size(); i++)
+                    RandomMutation<URBG>::mutate(memetic_algorithm, members[i], std::ceil(num_terms * dist(this->urbg)));
+            }, num_parts);
         }
-        pop.reheap();
     }
 
 private:
@@ -111,8 +135,10 @@ private:
     float stddev;
 };
 
-
 template<class URBG>
+using ParallelNormalDistRandomMutation = NormalDistRandomMutation<URBG, true>;
+
+template<class URBG, bool PARALLEL = false>
 class BimodalNormalDistRandomMutation : public RandomMutation<URBG>
 {
 public:
@@ -141,8 +167,19 @@ public:
         std::normal_distribution<float> dist(mean_mutation_rate, stddev);
         const auto& best = pop.best();
         const uint64_t num_terms = best.first.getOutputBits() * best.first.getMaxTerms();
-        for ( auto& member : pop.getMembers() ) {
-            RandomMutation<URBG>::mutate(memetic_algorithm, member, std::ceil(num_terms * dist(this->urbg)));
+        if constexpr ( !PARALLEL ) {
+            for ( auto& member : pop.getMembers() ) {
+                RandomMutation<URBG>::mutate(memetic_algorithm, member, std::ceil(num_terms * dist(this->urbg)));
+            }
+        } else {
+            auto& pool = ThreadPool::getThreadPool();
+            auto& members = pop.getMembers();
+            const uint64_t num_parts = std::min(members.size(), pool.getNumThreads());
+            const uint64_t num_per_part = Math::ceilDiv(members.size(), num_parts);
+            pool.run([&](uint64_t tid){
+                for(uint64_t i = tid * num_per_part; i < (tid + 1) * num_per_part && i < members.size(); i++)
+                    RandomMutation<URBG>::mutate(memetic_algorithm, members[i], std::ceil(num_terms * dist(this->urbg)));
+                }, num_parts);
         }
     }
 
@@ -153,3 +190,6 @@ private:
     const float stddev2;
     const float prob1;
 };
+
+template<class URBG>
+using ParallelBimodalNormalDistRandomMutation = BimodalNormalDistRandomMutation<URBG, true>;
