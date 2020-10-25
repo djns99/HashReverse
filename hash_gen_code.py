@@ -2,6 +2,7 @@ import math
 import random
 import subprocess
 import sys
+import binascii
 
 import numpy as np
 from pylfsr import LFSR
@@ -42,6 +43,10 @@ def run_lfsr(lfsr, num):
         lfsr.next()
     return (lfsr.state[0] & 1)
 
+def crc(num):
+    global in_bits
+    return binascii.crc32(num.to_bytes(in_bits // 8, 'little')) & 1
+
 poly_list = [[64, 63, 61, 60]]
 if in_bits != 64:
     poly_list = LFSR().get_fpolyList(m=in_bits)
@@ -49,5 +54,6 @@ if in_bits != 64:
 lfsr = LFSR(fpoly=poly_list[0])
 for i in range(num_words):
     val = random.randint(0, 2 ** in_bits - 1) if randomise else i
-    print(str(val) + "," + str(run_lfsr(lfsr, val)))
+    # print(str(val) + "," + str(run_lfsr(lfsr, val)))
     # print(str(val) + "," + str(xor_num(val)))
+    print(str(val) + "," + str(crc(val)))

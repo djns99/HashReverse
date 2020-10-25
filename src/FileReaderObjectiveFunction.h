@@ -16,13 +16,15 @@ public:
         if(!file)
             throw std::invalid_argument("Bad file path");
         char comma = 0x1;
-        file >> std::dec >> input_bits >> comma >> std::hex >> output_bits >> comma >> num_samples >> std::dec;
+        if(!(file >> std::dec >> input_bits >> comma >> output_bits >> comma >> num_samples))
+            throw std::runtime_error("Failed to read file header");
         if(input_bits == 0 || output_bits == 0)
             throw std::invalid_argument("Incorrect file format");
         // Read all samples
         for ( uint64_t i = 0; i < num_samples; i++ ) {
             uint64_t input, output;
-            file >> std::dec >> input >> comma >> std::hex >> output >> std::dec;
+            if(!(file >> std::dec >> input >> comma >> std::hex >> output >> std::dec))
+                throw std::runtime_error("Failed to read file - line " + std::to_string(i));
             hashes.emplace_back(input, output);
         }
 

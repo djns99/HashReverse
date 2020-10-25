@@ -178,7 +178,7 @@ uint64_t population_size = 1024;
 
 void printHeader()
 {
-    std::cout << "Algorithm Name,Best Score,Num Objective Calls,Num Hash Calls,Total Time" << std::endl;
+    std::cout << "Algorithm Name,Best Score,Num Objective Calls,Num Hash Calls,Total Time (ms)" << std::endl;
 }
 
 void printRes( const std::string& name,
@@ -220,6 +220,7 @@ void runAlgorithm( MemeticAlgorithm& algorithm,
                                           return ObjectiveFunction::getNumCalls() >= max_objective_calls;
                                       });
     // Include this in the total calls/timing since parallel does
+    std::cerr << "True objective score: " << true_objective_function(best) << std::endl;
     double min_score = true_objective_function.normalize(true_objective_function(best));
     auto end = std::chrono::high_resolution_clock::now();
     printRes(name, min_score, std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count());
