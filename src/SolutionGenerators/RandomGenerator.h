@@ -1,3 +1,6 @@
+/**
+ * Daniel Stokes 1331334
+ */
 #pragma once
 
 #include "../HashFunction.h"
@@ -56,7 +59,7 @@ public:
         return h;
     }
 
-    HashFunction operator()(const MemeticAlgorithm&) override
+    HashFunction operator()( const MemeticAlgorithm& ) override
     {
         return operator()();
     }

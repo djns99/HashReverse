@@ -1,3 +1,6 @@
+/**
+ * Daniel Stokes 1331334
+ */
 #pragma once
 
 #include "../LocalSearch.h"

@@ -1,3 +1,6 @@
+/**
+ * Daniel Stokes 1331334
+ */
 #pragma once
 
 #include "ConvergenceCriteria/ConvergenceCriterion.h"
@@ -42,6 +45,9 @@ public:
         return pop_size;
     }
 
+    [[nodiscard]] uint64_t getIterations() const;
+    [[nodiscard]] uint64_t getRestarts() const;
+
 private:
     Population generateInitial( uint64_t size );
 
@@ -58,6 +64,8 @@ private:
     std::unique_ptr<ConvergenceCriterion> convergence_criterion;
     const double restart_preservation_percentage = 0.0;
     uint64_t pop_size = 0;
+    uint64_t iterations = 0;
+    uint64_t restarts = 0;
 
     std::pair<HashFunction, uint64_t> best{};
 };

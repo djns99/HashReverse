@@ -1,3 +1,6 @@
+/**
+ * Daniel Stokes 1331334
+ */
 #include <iostream>
 #include "ThreadPool.h"
 

@@ -1,3 +1,6 @@
+/**
+ * Daniel Stokes 1331334
+ */
 #pragma once
 
 #include "src/HashFunction.h"
@@ -167,8 +170,8 @@ std::unique_ptr<MemeticAlgorithm> createMultiThreadedAlgorithm( uint64_t num_inp
             // std::make_unique<PureCommaOperator>(),
 
             // Convergence Strategies
-                                              std::make_unique<FullConvergence>(),
-            // std::make_unique<PercentConvergence>(0.99),
+            // std::make_unique<FullConvergence>(),
+                                              std::make_unique<PercentConvergence>(0.99),
             // std::make_unique<AlwaysFalseConvergence>(),
                                               0.1);
 }
@@ -178,12 +181,15 @@ uint64_t population_size = 1024;
 
 void printHeader()
 {
-    std::cout << "Algorithm Name,Best Score,Num Objective Calls,Num Hash Calls,Total Time (ms)" << std::endl;
+    std::cout << "Algorithm Name,Best Score,Num Objective Calls,Num Hash Calls,Total Time (ms),Iterations,Restarts"
+              << std::endl;
 }
 
 void printRes( const std::string& name,
                double min_score,
-               uint64_t duration )
+               uint64_t duration,
+               uint64_t iterations,
+               uint64_t restarts )
 {
     if ( !csv ) {
         std::cout << name << " true score: " << min_score << std::endl;
@@ -193,7 +199,8 @@ void printRes( const std::string& name,
         std::cout << std::endl;
     } else {
         std::cout << name << "," << min_score << "," << ObjectiveFunction::getNumCalls() << ","
-                  << HashFunction::getNumCalls() << "," << duration << std::endl;
+                  << HashFunction::getNumCalls() << "," << duration << "," << iterations << "," << restarts
+                  << std::endl;
     }
 }
 
@@ -223,7 +230,11 @@ void runAlgorithm( MemeticAlgorithm& algorithm,
     std::cerr << "True objective score: " << true_objective_function(best) << std::endl;
     double min_score = true_objective_function.normalize(true_objective_function(best));
     auto end = std::chrono::high_resolution_clock::now();
-    printRes(name, min_score, std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count());
+    printRes(name,
+             min_score,
+             std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count(),
+             algorithm.getIterations(),
+             algorithm.getRestarts());
 }
 
 void parallelRunAlgorithm( std::function<std::unique_ptr<MemeticAlgorithm>( uint64_t )> builder,
@@ -241,6 +252,8 @@ void parallelRunAlgorithm( std::function<std::unique_ptr<MemeticAlgorithm>( uint
     std::mutex objective_guard;
     std::vector<double> results(num_threads);
     auto start = std::chrono::high_resolution_clock::now();
+    uint64_t iterations = 0;
+    uint64_t restarts = 0;
     std::atomic<bool> done{false};
     pool.run([&]( uint64_t tid )
              {
@@ -268,13 +281,17 @@ void parallelRunAlgorithm( std::function<std::unique_ptr<MemeticAlgorithm>( uint
                                                     });
                  std::lock_guard<std::mutex> l(objective_guard);
                  results[tid] = true_objective_function.normalize(true_objective_function(best));
+                 iterations += algorithm->getIterations();
+                 restarts += algorithm->getRestarts();
              }, num_threads);
 
     double min_score = *std::min(results.begin(), results.end());
     auto end = std::chrono::high_resolution_clock::now();
     printRes("Many " + std::string(name),
              min_score,
-             std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count());
+             std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count(),
+             iterations,
+             restarts);
 }
 
 template<class URBG, bool local_search = false>
@@ -320,35 +337,35 @@ void evaluateHash( ObjectiveFunction& full_objective_function,
                                                                                            max_terms,
                                                                                            partial_objective_function,
                                                                                            urbg);
-        runAlgorithm(*parallel_memetic_algorithm, partial_objective_function, "Parallel Memetic");
+        runAlgorithm(*parallel_memetic_algorithm, full_objective_function, "Parallel Memetic");
     }
 
 
-    {
-        RandomWalk walk(partial_objective_function.clone(),
-                        std::make_unique<RandomGenerator<std::mt19937_64>>(num_inputs,
-                                                                           num_outputs,
-                                                                           max_terms,
-                                                                           dont_care_weight,
-                                                                           all_zero_prob,
-                                                                           urbg),
-                        urbg);
-        runAlgorithm(walk, partial_objective_function, "Random Walk");
-    }
+    //{
+    //    RandomWalk walk(partial_objective_function.clone(),
+    //                    std::make_unique<RandomGenerator<std::mt19937_64>>(num_inputs,
+    //                                                                       num_outputs,
+    //                                                                       max_terms,
+    //                                                                       dont_care_weight,
+    //                                                                       all_zero_prob,
+    //                                                                       urbg),
+    //                    urbg);
+    //    runAlgorithm(walk, full_objective_function, "Random Walk");
+    //}
 
-    parallelRunAlgorithm([&]( uint64_t tid )
-                         {
-                             std::mt19937_64& sub_twister = twisters[tid];
-                             return std::make_unique<RandomWalk>(partial_objective_function.clone(),
-                                                                 std::make_unique<RandomGenerator<std::mt19937_64>>(
-                                                                         num_inputs,
-                                                                         num_outputs,
-                                                                         max_terms,
-                                                                         dont_care_weight,
-                                                                         all_zero_prob,
-                                                                         sub_twister),
-                                                                 sub_twister);
-                         }, full_objective_function, "Random Walk", thread_pool_size);
+    //parallelRunAlgorithm([&]( uint64_t tid )
+    //                     {
+    //                         std::mt19937_64& sub_twister = twisters[tid];
+    //                         return std::make_unique<RandomWalk>(partial_objective_function.clone(),
+    //                                                             std::make_unique<RandomGenerator<std::mt19937_64>>(
+    //                                                                     num_inputs,
+    //                                                                     num_outputs,
+    //                                                                     max_terms,
+    //                                                                     dont_care_weight,
+    //                                                                     all_zero_prob,
+    //                                                                     sub_twister),
+    //                                                             sub_twister);
+    //                     }, full_objective_function, "Random Walk", thread_pool_size);
 
     {
         RandomWalk parallel_walk(partial_objective_function.clone(),

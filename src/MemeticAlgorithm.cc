@@ -7,8 +7,8 @@ HashFunction MemeticAlgorithm::run( uint64_t population_size,
 {
     pop_size = population_size;
     Population p = generateInitial(population_size);
-    uint64_t i;
-    for ( i = 0; !should_stop(i, p); i++ ) {
+    restarts = 0;
+    for ( iterations = 0; !should_stop(iterations, p); iterations++ ) {
         Population old = p;
         Population new_pop = (*processing_pipeline)(*this, p);
         p = (*reconstruction_strategy)(old, new_pop);
@@ -17,13 +17,14 @@ HashFunction MemeticAlgorithm::run( uint64_t population_size,
         // printPopulation(p);
         assert(p.size() == population_size);
         if ( (*convergence_criterion)(p) ) {
+            restarts++;
             p = restartPopulation(p);
         }
         assert(p.size() == population_size);
-        std::cerr << i << ": " << best.second << "(" << p.best().second << ")" << "\t\t\t\r" << std::flush;
+        std::cerr << iterations << ": " << best.second << "(" << p.best().second << ")" << "\t\t\t\r" << std::flush;
     }
     assert(best.second != UINT64_MAX);
-    std::cerr << i << ": " << best.second << "\t\t\t\t\t\r" << std::endl;
+    std::cerr << iterations << ": " << best.second << "\t\t\t\t\t\r" << std::endl;
 
     return (p.best().second < best.second) ? p.best().first : best.first;
 }
@@ -82,4 +83,14 @@ void MemeticAlgorithm::updateBest( const std::pair<HashFunction, uint64_t>& cand
 {
     if ( candidate.second < best.second )
         best = candidate;
+}
+
+uint64_t MemeticAlgorithm::getIterations() const
+{
+    return iterations;
+}
+
+uint64_t MemeticAlgorithm::getRestarts() const
+{
+    return restarts;
 }

@@ -1,3 +1,6 @@
+/**
+ * Daniel Stokes 1331334
+ */
 #include "Evaluate.h"
 
 void random( int argc,

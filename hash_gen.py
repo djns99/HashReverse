@@ -1,6 +1,7 @@
 import random
 import subprocess
 import sys
+import math
 
 if len(sys.argv) != 4 or "help" in sys.argv:
     print("Usage: ", sys.argv[0], "<command> <input bits> <output bits>")

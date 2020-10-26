@@ -1,3 +1,6 @@
+/**
+ * Daniel Stokes 1331334
+ */
 #pragma once
 
 #include <cassert>
@@ -47,7 +50,7 @@ struct Term
         const uint64_t hi_mask = input_hi & value_hi;
         const uint64_t lo_res = merge(lo_mask);
         const uint64_t hi_res = merge(hi_mask);
-        return (lo_res == UINT32_MAX && hi_res == UINT32_MAX);// ^ negate;
+        return (lo_res == UINT32_MAX && hi_res == UINT32_MAX) ^ negate;
     }
 
     void set( uint32_t index,

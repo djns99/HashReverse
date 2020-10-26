@@ -1,5 +1,6 @@
-#pragma once
-
+/**
+ * Daniel Stokes 1331334
+ */
 #pragma once
 
 #include "../PipelineStage.h"

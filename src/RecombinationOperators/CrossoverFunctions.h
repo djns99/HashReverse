@@ -1,7 +1,10 @@
+/**
+ * Daniel Stokes 1331334
+ */
 #pragma once
 #include "../HashFunction.h"
 #include <random>
-class TermCrossover
+class BitCrossover
 {
 public:
     template<class URBG>
@@ -39,7 +42,7 @@ public:
     }
 };
 
-class BitCrossover
+class TermCrossover
 {
 public:
     template<class URBG>

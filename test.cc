@@ -1,3 +1,6 @@
+/**
+ * Daniel Stokes 1331334
+ */
 #include <map>
 #include "src/RecombinationOperators/WeightedCrossover.h"
 #include "src/LocalSearch.h"

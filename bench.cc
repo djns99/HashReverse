@@ -41,3 +41,5 @@ int main(int argc, char** argv)
         evaluateHash(full, partial, twister, full.getInputBits(), full.getOutputBits(), max_terms, thread_pool_size);
 }
 
+// Rerun ./cmake-build-release/bench xor_64.csv xor_64_test.csv 6 128 1024 1000000 100 0 2
+// ./cmake-build-release/bench xor_64.csv xor_64_test.csv 2 128 1024 1000000 10000 0 2
