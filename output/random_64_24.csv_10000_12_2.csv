@@ -1,0 +1,5 @@
+Algorithm Name,Best Score,Num Objective Calls,Num Hash Calls,Total Time (ms),Iterations,Restarts
+Sequential Memetic,0.157765,1030002,1056817152,134278,17,0
+Many Sequential Memetic,0.158023,1560012,1610022912,36160,24,0
+Parallel Memetic,0.269528,1030002,1056817152,35385,17,0
+Parallel Random Walk,0.158294,1000002,1026097152,36558,99,0
